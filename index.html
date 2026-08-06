@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ressas Sky Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#080B14;
+    --dusk1:#151B32;
+    --dusk2:#2C2444;
+    --plum:#4A3160;
+    --ember:#FF7A45;
+    --ember-soft:#FFB37A;
+    --limestone:#B9AF9C;
+    --teal:#2FBFA0;
+    --teal-dim:#1F8A73;
+    --text-hi:#F5EFE6;
+    --text-lo:rgba(245,239,230,0.62);
+    --text-faint:rgba(245,239,230,0.38);
+    --card:rgba(255,255,255,0.045);
+    --card-border:rgba(255,255,255,0.09);
+    --danger:#E0574B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 120% 70% at 50% -10%, #3A2A52 0%, transparent 55%),
+      radial-gradient(ellipse 90% 60% at 85% 0%, #5C3A2E 0%, transparent 45%),
+      linear-gradient(180deg, var(--night) 0%, var(--dusk1) 45%, #0C0F1C 100%);
+    background-attachment:fixed;
+    color:var(--text-hi);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:48px 20px 80px;}
+
+  /* ---------- Hero ---------- */
+  .hero{margin-bottom:40px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--teal);margin-bottom:14px;display:flex;align-items:center;gap:8px;
+  }
+  .eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal);}
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:clamp(34px,5.5vw,54px);
+    line-height:1.04;
+    margin:0 0 14px;
+    letter-spacing:-0.01em;
+    background:linear-gradient(100deg,#F5EFE6 30%,var(--ember-soft) 75%,var(--ember) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p{
+    font-size:16px;line-height:1.6;color:var(--text-lo);max-width:600px;margin:0 0 24px;
+  }
+  .loc-row{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--text-faint);
+  }
+  .chip{
+    border:1px solid var(--card-border);background:var(--card);
+    padding:5px 11px;border-radius:100px;
+  }
+  .refresh-btn{
+    margin-top:22px;
+    background:linear-gradient(135deg,var(--ember) 0%,#E0574B 100%);
+    color:#1A0E08;font-weight:700;font-family:'Inter',sans-serif;font-size:14px;
+    border:none;padding:12px 22px;border-radius:10px;cursor:pointer;
+    box-shadow:0 8px 24px -8px rgba(255,122,69,0.55);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .refresh-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px -6px rgba(255,122,69,0.65);}
+  .refresh-btn:active{transform:translateY(0);}
+  .refresh-btn:disabled{opacity:0.5;cursor:wait;transform:none;}
+
+  /* ---------- Status ---------- */
+  #status{margin:20px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-lo);}
+  .err{
+    border:1px solid rgba(224,87,75,0.4);background:rgba(224,87,75,0.08);
+    padding:14px 16px;border-radius:10px;color:#FFB4AB;
+  }
+
+  section.block{margin-top:52px;}
+  .block-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+  h2{
+    font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:0;color:var(--text-hi);
+  }
+  .block-sub{font-size:13px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;}
+
+  /* ---------- Top picks ---------- */
+  .picks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+  .pick-card{
+    background:var(--card);border:1px solid var(--card-border);border-radius:16px;
+    padding:20px;position:relative;overflow:hidden;
+  }
+  .pick-rank{
+    position:absolute;top:16px;right:18px;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;color:var(--text-faint);
+  }
+  .pick-date{font-size:14px;color:var(--text-lo);font-weight:500;}
+  .pick-event{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin:4px 0 12px;}
+  .pick-score-row{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;}
+  .pick-score{font-family:'Fraunces',serif;font-size:40px;font-weight:700;}
+  .pick-tier{font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:100px;}
+  .pick-why{font-size:13px;line-height:1.5;color:var(--text-lo);margin-top:8px;}
+
+  /* ---------- Day cards ---------- */
+  .day-card{
+    background:var(--card);border:1px solid var(--card-border);border-radius:16px;
+    padding:20px 22px;margin-bottom:14px;
+  }
+  .day-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:16px;}
+  .day-title{display:flex;align-items:center;gap:10px;}
+  .day-icon{font-size:22px;}
+  .day-date{font-family:'Fraunces',serif;font-size:19px;font-weight:600;}
+  .day-time{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--text-faint);margin-top:2px;}
+  .score-badge{display:flex;align-items:center;gap:12px;}
+  .score-num{font-family:'Fraunces',serif;font-size:32px;font-weight:700;}
+  .tier-pill{font-size:11.5px;font-weight:700;letter-spacing:0.02em;padding:5px 11px;border-radius:100px;white-space:nowrap;}
+  .conf-tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-faint);margin-top:5px;text-transform:uppercase;letter-spacing:0.06em;}
+
+  .sky-strip{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-bottom:10px;border:1px solid rgba(255,255,255,0.06);}
+  .sky-seg{flex:1;position:relative;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:rgba(0,0,0,0.55);font-weight:600;}
+  .sky-seg span{position:relative;z-index:2;color:rgba(255,255,255,0.85);text-shadow:0 1px 3px rgba(0,0,0,0.5);}
+  .sky-labels{display:flex;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);margin-bottom:16px;letter-spacing:0.04em;}
+  .sky-labels div{flex:1;text-align:center;}
+
+  .why-text{font-size:13.5px;line-height:1.55;color:var(--text-lo);margin-bottom:14px;}
+
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+  .stat{background:rgba(255,255,255,0.03);border-radius:8px;padding:9px 11px;}
+  .stat-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin-bottom:3px;}
+  .stat-val{font-size:14px;font-weight:600;color:var(--text-hi);}
+
+  /* ---------- Methodology ---------- */
+  .method{
+    background:var(--card);border:1px solid var(--card-border);border-radius:16px;padding:22px 24px;
+  }
+  .method h3{font-family:'Fraunces',serif;font-size:16px;margin:18px 0 8px;color:var(--ember-soft);}
+  .method h3:first-child{margin-top:0;}
+  .method p, .method li{font-size:13.5px;line-height:1.65;color:var(--text-lo);}
+  .method ul{margin:6px 0;padding-left:18px;}
+  .factor-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}
+  .factor-table td,.factor-table th{padding:7px 8px;border-bottom:1px solid var(--card-border);text-align:left;}
+  .factor-table th{color:var(--text-faint);font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.05em;font-weight:500;}
+  .caveat{
+    margin-top:16px;padding:13px 15px;border-radius:10px;
+    background:rgba(255,122,69,0.07);border:1px solid rgba(255,122,69,0.25);
+    font-size:13px;color:var(--ember-soft);line-height:1.55;
+  }
+
+  footer{margin-top:56px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--text-faint);text-align:center;}
+
+  ::selection{background:var(--ember);color:#1A0E08;}
+
+  @media (max-width:480px){
+    .wrap{padding:32px 16px 60px;}
+    .score-badge{flex-direction:column;align-items:flex-end;gap:4px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <div class="eyebrow">Djebel Ressas · Live Forecast Model</div>
+    <h1>Ressas Sky Index</h1>
+    <p>Stop guessing. This pulls the live atmospheric forecast for Djebel Ressas and scores every upcoming sunrise and sunset on the conditions that actually produce a good sky — cloud structure, horizon clarity, haze, dust, and wind — so you only make the drive up when it's worth it.</p>
+    <div class="loc-row">
+      <span class="chip">36.607°N, 10.336°E</span>
+      <span class="chip">795 m summit</span>
+      <span class="chip">Ben Arous, Tunisia</span>
+      <span class="chip" id="tzChip">Africa/Tunis</span>
+    </div>
+    <button class="refresh-btn" id="refreshBtn">Refresh forecast</button>
+  </div>
+
+  <div id="status"></div>
+
+  <section class="block" id="picksBlock" style="display:none;">
+    <div class="block-head">
+      <h2>Best upcoming windows</h2>
+      <span class="block-sub" id="picksSub"></span>
+    </div>
+    <div class="picks-grid" id="topPicks"></div>
+  </section>
+
+  <section class="block" id="allBlock" style="display:none;">
+    <div class="block-head">
+      <h2>Full forecast</h2>
+      <span class="block-sub">chronological · sunrise &amp; sunset</span>
+    </div>
+    <div id="dayList"></div>
+  </section>
+
+  <section class="block">
+    <div class="block-head">
+      <h2>How the score works</h2>
+    </div>
+    <div class="method">
+      <h3>The six factors</h3>
+      <table class="factor-table">
+        <tr><th>Factor</th><th>Weight</th><th>What it measures</th></tr>
+        <tr><td>Cloud canvas</td><td>30 pts</td><td>Mid &amp; high-altitude cloud cover above Ressas. This is what catches and reflects color — zero cloud gives a flat, "lifeless" gradient exactly like what you've been seeing; full overcast kills it from the other direction.</td></tr>
+        <tr><td>Horizon window</td><td>18 pts</td><td>Low-altitude cloud cover directly above Ressas. Needs to stay clear so direct light can reach the underside of the higher clouds at a low angle.</td></tr>
+        <tr><td>Downrange corridor</td><td>12 pts</td><td>Low cloud cover at two points 60km and 130km out, along the sun's actual computed bearing for that event. Checks whether something is blocking the light well before it even reaches you — this is the closest honest proxy to "cloud direction" that real forecast data supports.</td></tr>
+        <tr><td>Atmospheric clarity</td><td>20 pts</td><td>Relative humidity + visibility. Haze mutes saturation and contrast even on an otherwise good cloud day.</td></tr>
+        <tr><td>Dust / aerosols</td><td>10 pts</td><td>PM10 &amp; dust concentration. Light Saharan dust can deepen reds; heavy dust events wash the whole sky out.</td></tr>
+        <tr><td>Wind</td><td>10 pts</td><td>Light-to-moderate wind keeps the air clean without shredding cloud structure; dead calm risks stagnant haze, strong wind risks a wiped-clean sky.</td></tr>
+      </table>
+      <h3>How the direction is calculated</h3>
+      <p>Each event's true sunrise/sunset compass bearing is computed from Ressas' latitude and the sun's declination for that date, using a standard solar-geometry formula (verified against three known reference cases — equinox gives due East/West everywhere, and mid-latitude solstice bearings were checked against published almanac values before this went live). Two checkpoints are placed 60km and 130km along that bearing using standard great-circle geodesy, and their forecast low cloud cover is pulled at the exact moment of the Ressas event. The bearing is held fixed across the whole 10-day window rather than recalculated per day — it drifts at most a few degrees over that span, which shifts a checkpoint by only a few km at this distance.</p>
+      <h3>Reading the score</h3>
+      <ul>
+        <li><strong style="color:#FF9D6C">85–100 — Exceptional:</strong> textured, saturated sky likely. Go.</li>
+        <li><strong style="color:#FFC08A">70–84 — Good:</strong> solid odds of real color and structure.</li>
+        <li><strong style="color:var(--limestone)">50–69 — Average:</strong> watchable, probably unremarkable.</li>
+        <li><strong style="color:#9BA3B0">30–49 — Below average:</strong> likely flat or hazy.</li>
+        <li><strong style="color:var(--danger)">0–29 — Poor:</strong> skip it.</li>
+      </ul>
+      <div class="caveat">
+        <strong>Honest limitations:</strong> this is a forecast-driven heuristic, not a certainty. Confidence is high for the next 1–2 days, medium out to day 4, and meaningfully looser beyond that — the underlying weather model itself gets less reliable with lead time, not the scoring logic. The downrange corridor still can't see cloud cover as a spatial map, only total-sky-fraction at three separate points along one line — it's a real improvement over ignoring direction entirely, but it isn't a satellite image. Checkpoints that land over open water may snap to the nearest coastal grid cell (a detail of the underlying weather service), slightly reducing precision for that specific case. Sunrise checkpoints from Ressas often fall over the Gulf of Hammamet / Mediterranean; sunset checkpoints fall inland toward Tunisia's interior.
+      </div>
+    </div>
+  </section>
+
+  <footer id="footerNote">—</footer>
+</div>
+
+<script>
+const LAT = 36.607, LON = 10.336;
+const TZ = "Africa/Tunis";
+// Tunisia has used a fixed UTC+1 offset with no DST since 2008/2009 (confirmed).
+// toEpoch() below treats API-returned local-time digits as if they were UTC digits,
+// which shifts every event epoch forward by this offset relative to true UTC time.
+// "now" must be shifted by the same amount before it's compared against those epochs,
+// or every "is this event still upcoming" / "how many days away" check is wrong by 1 hour.
+const TUNIS_UTC_OFFSET_MS = 60 * 60 * 1000;
+
+function pick(obj, keys){
+  for(const k of keys){ if(obj && obj[k] !== undefined) return obj[k]; }
+  return undefined;
+}
+
+function toEpoch(isoNoSeconds){
+  // isoNoSeconds like "2026-08-06T19:05" -> treat literally as the timezone-local instant
+  return Date.parse(isoNoSeconds + ":00Z");
+}
+
+function interpAt(epoch, epochs, values){
+  if(!values || !epochs || !epochs.length) return null;
+  if(epoch <= epochs[0]) return values[0];
+  if(epoch >= epochs[epochs.length-1]) return values[values.length-1];
+  for(let i=0;i<epochs.length-1;i++){
+    if(epoch >= epochs[i] && epoch <= epochs[i+1]){
+      const span = epochs[i+1]-epochs[i];
+      const frac = span === 0 ? 0 : (epoch-epochs[i])/span;
+      const a = values[i], b = values[i+1];
+      if(a===null||a===undefined||b===null||b===undefined) return a ?? b ?? null;
+      return a + (b-a)*frac;
+    }
+  }
+  return values[values.length-1];
+}
+
+// ---- solar geometry ----
+// Solar declination (Cooper 1969 approximation, accurate to within ~1 deg — plenty
+// for placing a directional checkpoint, not intended for precision astronomy).
+function declinationDeg(dayOfYear){
+  return 23.45 * Math.sin(2*Math.PI*(284+dayOfYear)/365);
+}
+// True-horizon (h=0) sunrise azimuth from North, clockwise. Ignores atmospheric
+// refraction (~0.5-1 deg shift) and the mountain's own terrain horizon — both push
+// the *visible* moment a little earlier/later but barely move the compass bearing.
+// Verified against known reference values before use:
+//   equinox (dec=0) -> 90 deg (due East) - correct for every latitude.
+//   ~37N summer solstice (dec=+23.44) -> ~60 deg (NE), matching published almanac
+//   values for similar-latitude cities (e.g. Los Angeles ~61 deg).
+//   ~37N winter solstice (dec=-23.44) -> ~120 deg (SE), matching the same references.
+function sunriseAzimuthDeg(latDeg, decDeg){
+  const lat = latDeg*Math.PI/180, dec = decDeg*Math.PI/180;
+  let cosA = Math.sin(dec)/Math.cos(lat);
+  cosA = Math.max(-1, Math.min(1, cosA));
+  return Math.acos(cosA) * 180/Math.PI;
+}
+function sunsetAzimuthDeg(latDeg, decDeg){
+  return 360 - sunriseAzimuthDeg(latDeg, decDeg);
+}
+function compassLabel(bearingDeg){
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  const idx = Math.round((((bearingDeg%360)+360)%360) / 22.5) % 16;
+  return dirs[idx];
+}
+// Standard geodesic "destination point given start, bearing, distance" formula
+// (great-circle reckoning) — used to place checkpoints along the sun's bearing.
+function destinationPoint(lat, lon, bearingDeg, distanceKm){
+  const R = 6371;
+  const phi1 = lat*Math.PI/180, lam1 = lon*Math.PI/180, theta = bearingDeg*Math.PI/180, delta = distanceKm/R;
+  const phi2 = Math.asin(Math.sin(phi1)*Math.cos(delta) + Math.cos(phi1)*Math.sin(delta)*Math.cos(theta));
+  const lam2 = lam1 + Math.atan2(Math.sin(theta)*Math.sin(delta)*Math.cos(phi1), Math.cos(delta)-Math.sin(phi1)*Math.sin(phi2));
+  return { lat: phi2*180/Math.PI, lon: lam2*180/Math.PI };
+}
+function dayOfYearFromEpoch(epoch){
+  const d = new Date(epoch);
+  const y = d.getUTCFullYear();
+  return Math.floor((Date.UTC(y, d.getUTCMonth(), d.getUTCDate()) - Date.UTC(y,0,1))/86400000) + 1;
+}
+
+// ---- scoring primitives ----
+function bellScore(v, lo, idealLo, idealHi, hi){
+  if(v===null||v===undefined||isNaN(v)) return 0.6;
+  if(v<=lo) return 0;
+  if(v>=hi) return 0;
+  if(v>=idealLo && v<=idealHi) return 1;
+  if(v<idealLo) return (v-lo)/(idealLo-lo);
+  return (hi-v)/(hi-idealHi);
+}
+function horizonScoreFn(cloudLow){
+  if(cloudLow===null||cloudLow===undefined||isNaN(cloudLow)) return 0.6;
+  if(cloudLow<=15) return 1;
+  if(cloudLow>=70) return 0;
+  return 1-(cloudLow-15)/(70-15);
+}
+function humidityScoreFn(h){
+  if(h===null||h===undefined||isNaN(h)) return 0.6;
+  if(h<=45) return 1;
+  if(h>=90) return 0;
+  return 1-(h-45)/(90-45);
+}
+function visibilityScoreFn(vMeters){
+  if(vMeters===null||vMeters===undefined||isNaN(vMeters)) return 0.6;
+  const km = vMeters/1000;
+  if(km>=20) return 1;
+  if(km<=5) return 0;
+  return (km-5)/(20-5);
+}
+function dustScoreFn(d){
+  if(d===null||d===undefined||isNaN(d)) return 0.7;
+  if(d<=5) return 0.75;
+  if(d<=45) return 1;
+  if(d<=100) return 1-((d-45)/(100-45))*0.6;
+  if(d<=300) return Math.max(0, 0.4-((d-100)/(300-100))*0.4);
+  return 0;
+}
+function windScoreFn(w){
+  if(w===null||w===undefined||isNaN(w)) return 0.6;
+  if(w<3) return 0.5;
+  if(w<=25) return 1;
+  if(w<=50) return 1-((w-25)/(50-25));
+  return 0;
+}
+
+function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar}){
+  const midS = bellScore(cloudMid, 0, 25, 65, 100);
+  const highS = bellScore(cloudHigh, 0, 10, 55, 100);
+  const canvasPts = (midS*0.6 + highS*0.4) * 30;
+  const horizonPts = horizonScoreFn(cloudLow) * 18;
+  const downrangeScore = horizonScoreFn(downrangeNear)*0.5 + horizonScoreFn(downrangeFar)*0.5;
+  const downrangePts = downrangeScore * 12;
+  const clarityPts = (humidityScoreFn(humidity)*0.5 + visibilityScoreFn(visibility)*0.5) * 20;
+  const dustPts = dustScoreFn(dust) * 10;
+  const windPts = windScoreFn(wind) * 10;
+  const total = Math.max(0, Math.min(100, canvasPts+horizonPts+downrangePts+clarityPts+dustPts+windPts));
+  return {
+    total,
+    breakdown: {canvasPts, horizonPts, downrangePts, clarityPts, dustPts, windPts},
+    raw: {cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar}
+  };
+}
+
+function tierOf(score){
+  if(score>=85) return {label:"Exceptional", color:"#FF9D6C", bg:"rgba(255,122,69,0.16)"};
+  if(score>=70) return {label:"Good", color:"#FFC08A", bg:"rgba(255,179,122,0.14)"};
+  if(score>=50) return {label:"Average", color:"var(--limestone)", bg:"rgba(185,175,156,0.14)"};
+  if(score>=30) return {label:"Below average", color:"#9BA3B0", bg:"rgba(155,163,176,0.12)"};
+  return {label:"Poor", color:"#FF8478", bg:"rgba(224,87,75,0.14)"};
+}
+
+function reasonText(s){
+  const b = s.breakdown, r = s.raw;
+  const parts = [];
+  if(b.canvasPts < 12){
+    if((r.cloudMid??0) < 10 && (r.cloudHigh??0) < 10) parts.push("essentially clear sky — little to no cloud to catch color, expect a flat gradient");
+    else parts.push("cloud cover is too heavy or too sparse to build real texture");
+  } else if(b.canvasPts > 26){
+    parts.push(`solid mid/high cloud deck (mid ${Math.round(r.cloudMid??0)}%, high ${Math.round(r.cloudHigh??0)}%) — good canvas for color`);
+  }
+  if(b.horizonPts < 10){
+    parts.push(`low cloud is heavy (${Math.round(r.cloudLow??0)}%) and may block the sun near the horizon`);
+  } else if(b.horizonPts > 20){
+    parts.push("horizon looks clear, so light should reach the clouds above it");
+  }
+  if(r.downrangeNear!=null || r.downrangeFar!=null){
+    if(b.downrangePts < 5){
+      parts.push("cloud sitting further out along the sun's path could block light before it reaches you");
+    } else if(b.downrangePts > 10){
+      parts.push("the corridor toward the horizon in the sun's direction looks open");
+    }
+  }
+  if(b.clarityPts < 10){
+    parts.push("hazy air will likely mute saturation");
+  }
+  if(b.dustPts < 5){
+    parts.push("dust levels are high enough to wash the sky out");
+  }
+  if(parts.length===0) parts.push("balanced conditions across the board — nothing dramatic working against it");
+  return parts.slice(0,4).join("; ") + ".";
+}
+
+function fmtDate(epoch){
+  const d = new Date(epoch);
+  return d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short', timeZone:'UTC'});
+}
+function fmtTime(epoch){
+  const d = new Date(epoch);
+  let h = d.getUTCHours(), m = d.getUTCMinutes();
+  return String(h).padStart(2,'0')+":"+String(m).padStart(2,'0');
+}
+
+function skyStripHTML(r){
+  const lo = Math.round(r.cloudLow??0), mid = Math.round(r.cloudMid??0), hi = Math.round(r.cloudHigh??0);
+  function seg(pct, colorA, colorB){
+    return `<div class="sky-seg" style="background:linear-gradient(90deg, ${colorA} ${pct}%, rgba(255,255,255,0.03) ${pct}%);"><span>${pct}%</span></div>`;
+  }
+  return `
+    <div class="sky-strip">
+      ${seg(hi, '#5C4A80', 'transparent')}
+      ${seg(mid, '#B0567D', 'transparent')}
+      ${seg(lo, '#3E5C76', 'transparent')}
+    </div>
+    <div class="sky-labels"><div>High cloud</div><div>Mid cloud</div><div>Low cloud</div></div>
+  `;
+}
+
+function confidenceFor(dayOffset){
+  if(dayOffset<=1) return "High confidence";
+  if(dayOffset<=4) return "Medium confidence";
+  return "Lower confidence";
+}
+
+async function fetchWeather(extraPoints){
+  const pts = extraPoints || [];
+  const lats = [LAT, ...pts.map(p=>p.lat)].join(',');
+  const lons = [LON, ...pts.map(p=>p.lon)].join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+    `&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,visibility,wind_speed_10m` +
+    `&daily=sunrise,sunset&timezone=${encodeURIComponent(TZ)}&forecast_days=10&wind_speed_unit=kmh`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Weather forecast request failed ("+res.status+")");
+  return res.json();
+}
+
+async function fetchAirQuality(){
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}` +
+    `&hourly=dust,pm10&timezone=${encodeURIComponent(TZ)}&forecast_days=7`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Air quality request failed ("+res.status+")");
+  return res.json();
+}
+
+async function loadAll(){
+  const statusEl = document.getElementById('status');
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  statusEl.innerHTML = `<div>Fetching live atmospheric data for Djebel Ressas…</div>`;
+  document.getElementById('picksBlock').style.display = 'none';
+  document.getElementById('allBlock').style.display = 'none';
+
+  const now = Date.now() + TUNIS_UTC_OFFSET_MS;
+
+  // Representative bearing for the whole forecast window, computed from the
+  // middle day (day+5). Declination drifts at most a few degrees over 10 days
+  // (fastest near the equinoxes, ~0.4 deg/day), which shifts a checkpoint by only
+  // a few km at 60-130km range — small enough to hold the bearing fixed rather
+  // than recompute per-day and multiply the number of API calls needed.
+  const midDayOfYear = dayOfYearFromEpoch(now + 5*86400000);
+  const dec = declinationDeg(midDayOfYear);
+  const sunriseBearing = sunriseAzimuthDeg(LAT, dec);
+  const sunsetBearing = sunsetAzimuthDeg(LAT, dec);
+  const srNear = destinationPoint(LAT, LON, sunriseBearing, 60);
+  const srFar  = destinationPoint(LAT, LON, sunriseBearing, 130);
+  const ssNear = destinationPoint(LAT, LON, sunsetBearing, 60);
+  const ssFar  = destinationPoint(LAT, LON, sunsetBearing, 130);
+  const checkpoints = [srNear, srFar, ssNear, ssFar];
+
+  let wxRaw, downrangeAvailable = true, aqOk = true, aq = null;
+  try {
+    wxRaw = await fetchWeather(checkpoints);
+  } catch(e){
+    try {
+      wxRaw = await fetchWeather([]);
+      downrangeAvailable = false;
+    } catch(e2){
+      statusEl.innerHTML = `<div class="err">Couldn't load the weather forecast: ${e2.message}. Try refreshing — if it keeps failing, Open-Meteo may be temporarily unavailable.</div>`;
+      btn.disabled = false;
+      return;
+    }
+  }
+  const wxList = Array.isArray(wxRaw) ? wxRaw : [wxRaw];
+  if(wxList.length < 5) downrangeAvailable = false;
+  const wx = wxList[0];
+
+  function buildLoc(locObj){
+    if(!locObj || !locObj.hourly) return {epochs:[], cloudLow:null};
+    return {
+      epochs: (locObj.hourly.time||[]).map(toEpoch),
+      cloudLow: pick(locObj.hourly, ['cloud_cover_low','cloudcover_low'])
+    };
+  }
+  const srNearLoc = downrangeAvailable ? buildLoc(wxList[1]) : null;
+  const srFarLoc  = downrangeAvailable ? buildLoc(wxList[2]) : null;
+  const ssNearLoc = downrangeAvailable ? buildLoc(wxList[3]) : null;
+  const ssFarLoc  = downrangeAvailable ? buildLoc(wxList[4]) : null;
+
+  try {
+    aq = await fetchAirQuality();
+  } catch(e){
+    aqOk = false;
+  }
+
+  const hourly = wx.hourly || {};
+  const daily = wx.daily || {};
+  const hEpochs = (hourly.time||[]).map(toEpoch);
+  const cloudLowArr = pick(hourly, ['cloud_cover_low','cloudcover_low']);
+  const cloudMidArr = pick(hourly, ['cloud_cover_mid','cloudcover_mid']);
+  const cloudHighArr = pick(hourly, ['cloud_cover_high','cloudcover_high']);
+  const humArr = pick(hourly, ['relative_humidity_2m','relativehumidity_2m']);
+  const visArr = pick(hourly, ['visibility']);
+  const windArr = pick(hourly, ['wind_speed_10m','windspeed_10m']);
+
+  let aqEpochs = [], dustArr = null;
+  if(aqOk && aq && aq.hourly){
+    aqEpochs = (aq.hourly.time||[]).map(toEpoch);
+    dustArr = pick(aq.hourly, ['dust']);
+  }
+
+  const events = [];
+  const sunrises = daily.sunrise || [];
+  const sunsets = daily.sunset || [];
+
+  for(let i=0;i<Math.max(sunrises.length, sunsets.length);i++){
+    if(sunrises[i]){
+      const epoch = toEpoch(sunrises[i]);
+      if(epoch >= now - 30*60000) events.push({type:'sunrise', epoch});
+    }
+    if(sunsets[i]){
+      const epoch = toEpoch(sunsets[i]);
+      if(epoch >= now - 30*60000) events.push({type:'sunset', epoch});
+    }
+  }
+  events.sort((a,b)=>a.epoch-b.epoch);
+
+  if(events.length === 0){
+    statusEl.innerHTML = `<div class="err">No upcoming sunrise/sunset events found in the forecast window.</div>`;
+    btn.disabled = false;
+    return;
+  }
+
+  const scored = events.map(ev => {
+    const cloudLow = interpAt(ev.epoch, hEpochs, cloudLowArr);
+    const cloudMid = interpAt(ev.epoch, hEpochs, cloudMidArr);
+    const cloudHigh = interpAt(ev.epoch, hEpochs, cloudHighArr);
+    const humidity = interpAt(ev.epoch, hEpochs, humArr);
+    const visibility = interpAt(ev.epoch, hEpochs, visArr);
+    const wind = interpAt(ev.epoch, hEpochs, windArr);
+    const dust = dustArr ? interpAt(ev.epoch, aqEpochs, dustArr) : null;
+
+    let downrangeNear = null, downrangeFar = null;
+    const bearing = ev.type === 'sunrise' ? sunriseBearing : sunsetBearing;
+    if(downrangeAvailable){
+      const nearLoc = ev.type === 'sunrise' ? srNearLoc : ssNearLoc;
+      const farLoc = ev.type === 'sunrise' ? srFarLoc : ssFarLoc;
+      downrangeNear = interpAt(ev.epoch, nearLoc.epochs, nearLoc.cloudLow);
+      downrangeFar = interpAt(ev.epoch, farLoc.epochs, farLoc.cloudLow);
+    }
+
+    const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar});
+    const dayOffset = Math.floor((ev.epoch - now) / 86400000);
+    return {...ev, score, dayOffset, bearing};
+  });
+
+  statusEl.innerHTML = '';
+  btn.disabled = false;
+
+  // Top picks: best 3 by score within next 7 days
+  const within7 = scored.filter(s => s.dayOffset <= 7);
+  const top3 = [...within7].sort((a,b)=>b.score.total-a.score.total).slice(0,3);
+
+  const picksBlock = document.getElementById('picksBlock');
+  const topPicksEl = document.getElementById('topPicks');
+  document.getElementById('picksSub').textContent = `ranked · next 7 days`;
+  topPicksEl.innerHTML = top3.map((s, idx) => {
+    const tier = tierOf(s.score.total);
+    return `
+      <div class="pick-card">
+        <div class="pick-rank">#${idx+1}</div>
+        <div class="pick-date">${fmtDate(s.epoch)} · ${fmtTime(s.epoch)}</div>
+        <div class="pick-event">${s.type === 'sunset' ? 'Sunset' : 'Sunrise'}</div>
+        <div class="pick-score-row">
+          <div class="pick-score" style="color:${tier.color}">${Math.round(s.score.total)}</div>
+          <div class="pick-tier" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
+        </div>
+        <div class="pick-why">${reasonText(s.score)}</div>
+      </div>
+    `;
+  }).join('');
+  picksBlock.style.display = 'block';
+
+  // Full list
+  const dayList = document.getElementById('dayList');
+  dayList.innerHTML = scored.map(s => {
+    const tier = tierOf(s.score.total);
+    const bearingLabel = `${Math.round(s.bearing)}° ${compassLabel(s.bearing)}`;
+    return `
+      <div class="day-card">
+        <div class="day-top">
+          <div class="day-title">
+            <div class="day-icon">${s.type==='sunset' ? '🌇' : '🌅'}</div>
+            <div>
+              <div class="day-date">${fmtDate(s.epoch)} — ${s.type==='sunset'?'Sunset':'Sunrise'}</div>
+              <div class="day-time">${fmtTime(s.epoch)} local · bearing ${bearingLabel}</div>
+            </div>
+          </div>
+          <div class="score-badge">
+            <div>
+              <div class="score-num" style="color:${tier.color}">${Math.round(s.score.total)}</div>
+              <div class="conf-tag">${confidenceFor(s.dayOffset)}</div>
+            </div>
+            <div class="tier-pill" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
+          </div>
+        </div>
+        ${skyStripHTML(s.score.raw)}
+        <div class="why-text">${reasonText(s.score)}</div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-label">Humidity</div><div class="stat-val">${s.score.raw.humidity!=null?Math.round(s.score.raw.humidity)+'%':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Visibility</div><div class="stat-val">${s.score.raw.visibility!=null?(s.score.raw.visibility/1000).toFixed(1)+' km':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Wind</div><div class="stat-val">${s.score.raw.wind!=null?Math.round(s.score.raw.wind)+' km/h':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Dust</div><div class="stat-val">${s.score.raw.dust!=null?Math.round(s.score.raw.dust)+' µg/m³':(aqOk?'—':'unavailable')}</div></div>
+          <div class="stat"><div class="stat-label">Corridor (60km)</div><div class="stat-val">${s.score.raw.downrangeNear!=null?Math.round(s.score.raw.downrangeNear)+'% low cloud':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Corridor (130km)</div><div class="stat-val">${s.score.raw.downrangeFar!=null?Math.round(s.score.raw.downrangeFar)+'% low cloud':'—'}</div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('allBlock').style.display = 'block';
+
+  document.getElementById('footerNote').textContent =
+    `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${downrangeAvailable ? ' + directional corridor check' : ' (directional corridor unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ})`;
+}
+
+document.getElementById('refreshBtn').addEventListener('click', loadAll);
+loadAll();
+</script>
+</body>
+</html>
