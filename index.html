@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ressas Sky Index</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Sky Index — Djebel Ressas &amp; Zaghouan</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B0F1A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sky Index">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -79,6 +87,21 @@
   .refresh-btn:hover{transform:translateY(-1px);box-shadow:0 10px 28px -6px rgba(255,122,69,0.65);}
   .refresh-btn:active{transform:translateY(0);}
   .refresh-btn:disabled{opacity:0.5;cursor:wait;transform:none;}
+
+  .loc-switch{
+    display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;
+  }
+  .loc-tab{
+    font-family:'Inter',sans-serif;font-size:13.5px;font-weight:600;
+    padding:10px 18px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--card-border);background:var(--card);color:var(--text-lo);
+    transition:all .15s ease;
+  }
+  .loc-tab:hover{color:var(--text-hi);border-color:rgba(255,255,255,0.18);}
+  .loc-tab.active{
+    background:linear-gradient(135deg,var(--ember) 0%,#E0574B 100%);
+    color:#1A0E08;border-color:transparent;
+  }
 
   /* ---------- Status ---------- */
   #status{margin:20px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-lo);}
@@ -170,13 +193,14 @@
 <div class="wrap">
 
   <div class="hero">
-    <div class="eyebrow">Djebel Ressas · Live Forecast Model</div>
-    <h1>Ressas Sky Index</h1>
-    <p>Stop guessing. This pulls the live atmospheric forecast for Djebel Ressas and scores every upcoming sunrise and sunset on the conditions that actually produce a good sky — cloud structure, horizon clarity, haze, dust, and wind — so you only make the drive up when it's worth it.</p>
+    <div class="eyebrow" id="eyebrowText">Djebel Ressas · Live Forecast Model</div>
+    <h1>Sky Index</h1>
+    <p>Stop guessing. This pulls the live atmospheric forecast for the selected summit and scores every upcoming sunrise and sunset on the conditions that actually produce a good sky — cloud structure, horizon clarity, haze, dust, and wind — so you only make the drive up when it's worth it.</p>
+    <div class="loc-switch" id="locSwitch"></div>
     <div class="loc-row">
-      <span class="chip">36.607°N, 10.336°E</span>
-      <span class="chip">795 m summit</span>
-      <span class="chip">Ben Arous, Tunisia</span>
+      <span class="chip" id="chipCoords">—</span>
+      <span class="chip" id="chipElev">—</span>
+      <span class="chip" id="chipRegion">—</span>
       <span class="chip" id="tzChip">Africa/Tunis</span>
     </div>
     <button class="refresh-btn" id="refreshBtn">Refresh forecast</button>
@@ -208,15 +232,15 @@
       <h3>The six factors</h3>
       <table class="factor-table">
         <tr><th>Factor</th><th>Weight</th><th>What it measures</th></tr>
-        <tr><td>Cloud canvas</td><td>30 pts</td><td>Mid &amp; high-altitude cloud cover above Ressas. This is what catches and reflects color — zero cloud gives a flat, "lifeless" gradient exactly like what you've been seeing; full overcast kills it from the other direction.</td></tr>
-        <tr><td>Horizon window</td><td>18 pts</td><td>Low-altitude cloud cover directly above Ressas. Needs to stay clear so direct light can reach the underside of the higher clouds at a low angle.</td></tr>
+        <tr><td>Cloud canvas</td><td>30 pts</td><td>Mid &amp; high-altitude cloud cover above the summit. This is what catches and reflects color — zero cloud gives a flat, "lifeless" gradient; full overcast kills it from the other direction.</td></tr>
+        <tr><td>Horizon window</td><td>18 pts</td><td>Low-altitude cloud cover directly above the summit. Needs to stay clear so direct light can reach the underside of the higher clouds at a low angle.</td></tr>
         <tr><td>Downrange corridor</td><td>12 pts</td><td>Low cloud cover at two points 60km and 130km out, along the sun's actual computed bearing for that event. Checks whether something is blocking the light well before it even reaches you — this is the closest honest proxy to "cloud direction" that real forecast data supports.</td></tr>
         <tr><td>Atmospheric clarity</td><td>20 pts</td><td>Relative humidity + visibility. Haze mutes saturation and contrast even on an otherwise good cloud day.</td></tr>
         <tr><td>Dust / aerosols</td><td>10 pts</td><td>PM10 &amp; dust concentration. Light Saharan dust can deepen reds; heavy dust events wash the whole sky out.</td></tr>
         <tr><td>Wind</td><td>10 pts</td><td>Light-to-moderate wind keeps the air clean without shredding cloud structure; dead calm risks stagnant haze, strong wind risks a wiped-clean sky.</td></tr>
       </table>
       <h3>How the direction is calculated</h3>
-      <p>Each event's true sunrise/sunset compass bearing is computed from Ressas' latitude and the sun's declination for that date, using a standard solar-geometry formula (verified against three known reference cases — equinox gives due East/West everywhere, and mid-latitude solstice bearings were checked against published almanac values before this went live). Two checkpoints are placed 60km and 130km along that bearing using standard great-circle geodesy, and their forecast low cloud cover is pulled at the exact moment of the Ressas event. The bearing is held fixed across the whole 10-day window rather than recalculated per day — it drifts at most a few degrees over that span, which shifts a checkpoint by only a few km at this distance.</p>
+      <p>Each event's true sunrise/sunset compass bearing is computed from the summit's latitude and the sun's declination for that date, using a standard solar-geometry formula (verified against three known reference cases — equinox gives due East/West everywhere, and mid-latitude solstice bearings were checked against published almanac values before this went live). Two checkpoints are placed 60km and 130km along that bearing using standard great-circle geodesy, and their forecast low cloud cover is pulled at the exact moment of the event. The bearing is held fixed across the whole 10-day window rather than recalculated per day — it drifts at most a few degrees over that span, which shifts a checkpoint by only a few km at this distance.</p>
       <h3>Reading the score</h3>
       <ul>
         <li><strong style="color:#FF9D6C">85–100 — Exceptional:</strong> textured, saturated sky likely. Go.</li>
@@ -226,7 +250,7 @@
         <li><strong style="color:var(--danger)">0–29 — Poor:</strong> skip it.</li>
       </ul>
       <div class="caveat">
-        <strong>Honest limitations:</strong> this is a forecast-driven heuristic, not a certainty. Confidence is high for the next 1–2 days, medium out to day 4, and meaningfully looser beyond that — the underlying weather model itself gets less reliable with lead time, not the scoring logic. The downrange corridor still can't see cloud cover as a spatial map, only total-sky-fraction at three separate points along one line — it's a real improvement over ignoring direction entirely, but it isn't a satellite image. Checkpoints that land over open water may snap to the nearest coastal grid cell (a detail of the underlying weather service), slightly reducing precision for that specific case. Sunrise checkpoints from Ressas often fall over the Gulf of Hammamet / Mediterranean; sunset checkpoints fall inland toward Tunisia's interior.
+        <strong>Honest limitations:</strong> this is a forecast-driven heuristic, not a certainty. Confidence is high for the next 1–2 days, medium out to day 4, and meaningfully looser beyond that — the underlying weather model itself gets less reliable with lead time, not the scoring logic. The downrange corridor still can't see cloud cover as a spatial map, only total-sky-fraction at three separate points along one line — it's a real improvement over ignoring direction entirely, but it isn't a satellite image. Checkpoints that land over open water may snap to the nearest coastal grid cell (a detail of the underlying weather service), slightly reducing precision for that specific case — this is more likely for sunrise checkpoints near the coast than for sunset checkpoints further inland.
       </div>
     </div>
   </section>
@@ -235,7 +259,27 @@
 </div>
 
 <script>
-const LAT = 36.607, LON = 10.336;
+const LOCATIONS = [
+  {
+    id: 'ressas',
+    name: 'Djebel Ressas',
+    region: 'Ben Arous, Tunisia',
+    lat: 36.607, lon: 10.336, elevation: 795
+  },
+  {
+    id: 'zaghouan',
+    name: 'Djebel Zaghouan',
+    region: 'Zaghouan, Tunisia',
+    lat: 36.35, lon: 10.117, elevation: 1295
+  }
+];
+let currentLoc = LOCATIONS[0];
+try {
+  const savedId = localStorage.getItem('skyIndexLocation');
+  const found = LOCATIONS.find(l => l.id === savedId);
+  if (found) currentLoc = found;
+} catch(e) { /* localStorage unavailable — just default to Ressas */ }
+
 const TZ = "Africa/Tunis";
 // Tunisia has used a fixed UTC+1 offset with no DST since 2008/2009 (confirmed).
 // toEpoch() below treats API-returned local-time digits as if they were UTC digits,
@@ -445,11 +489,13 @@ function confidenceFor(dayOffset){
   return "Lower confidence";
 }
 
-async function fetchWeather(extraPoints){
-  const pts = extraPoints || [];
-  const lats = [LAT, ...pts.map(p=>p.lat)].join(',');
-  const lons = [LON, ...pts.map(p=>p.lon)].join(',');
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+// Dedicated single-location call for the summit itself, with an explicit
+// elevation override — confirmed via Open-Meteo's docs: default behavior is a
+// 90m-resolution auto-detected elevation, which can under/overshoot a sharp
+// peak. Passing the real summit elevation is documented as the correct fix.
+async function fetchSummitWeather(loc){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+    `&elevation=${loc.elevation}` +
     `&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,visibility,wind_speed_10m` +
     `&daily=sunrise,sunset&timezone=${encodeURIComponent(TZ)}&forecast_days=10&wind_speed_unit=kmh`;
   const res = await fetch(url);
@@ -457,8 +503,24 @@ async function fetchWeather(extraPoints){
   return res.json();
 }
 
-async function fetchAirQuality(){
-  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}` +
+// Separate multi-location call for the four downrange checkpoints. No manual
+// elevation override here (we don't have authoritative elevation for generic
+// terrain/sea points along the bearing) and cell_selection=nearest so a
+// checkpoint that lands over open water isn't artificially snapped to the
+// nearest coastal land cell — confirmed as a documented, valid option.
+async function fetchCheckpointWeather(points){
+  if(!points || points.length === 0) return null;
+  const lats = points.map(p=>p.lat).join(',');
+  const lons = points.map(p=>p.lon).join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+    `&hourly=cloud_cover_low&cell_selection=nearest&forecast_days=10`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Checkpoint forecast request failed ("+res.status+")");
+  return res.json();
+}
+
+async function fetchAirQuality(loc){
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lon}` +
     `&hourly=dust,pm10&timezone=${encodeURIComponent(TZ)}&forecast_days=7`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Air quality request failed ("+res.status+")");
@@ -468,8 +530,9 @@ async function fetchAirQuality(){
 async function loadAll(){
   const statusEl = document.getElementById('status');
   const btn = document.getElementById('refreshBtn');
+  const loc = currentLoc;
   btn.disabled = true;
-  statusEl.innerHTML = `<div>Fetching live atmospheric data for Djebel Ressas…</div>`;
+  statusEl.innerHTML = `<div>Fetching live atmospheric data for ${loc.name}…</div>`;
   document.getElementById('picksBlock').style.display = 'none';
   document.getElementById('allBlock').style.display = 'none';
 
@@ -482,30 +545,35 @@ async function loadAll(){
   // than recompute per-day and multiply the number of API calls needed.
   const midDayOfYear = dayOfYearFromEpoch(now + 5*86400000);
   const dec = declinationDeg(midDayOfYear);
-  const sunriseBearing = sunriseAzimuthDeg(LAT, dec);
-  const sunsetBearing = sunsetAzimuthDeg(LAT, dec);
-  const srNear = destinationPoint(LAT, LON, sunriseBearing, 60);
-  const srFar  = destinationPoint(LAT, LON, sunriseBearing, 130);
-  const ssNear = destinationPoint(LAT, LON, sunsetBearing, 60);
-  const ssFar  = destinationPoint(LAT, LON, sunsetBearing, 130);
+  const sunriseBearing = sunriseAzimuthDeg(loc.lat, dec);
+  const sunsetBearing = sunsetAzimuthDeg(loc.lat, dec);
+  const srNear = destinationPoint(loc.lat, loc.lon, sunriseBearing, 60);
+  const srFar  = destinationPoint(loc.lat, loc.lon, sunriseBearing, 130);
+  const ssNear = destinationPoint(loc.lat, loc.lon, sunsetBearing, 60);
+  const ssFar  = destinationPoint(loc.lat, loc.lon, sunsetBearing, 130);
   const checkpoints = [srNear, srFar, ssNear, ssFar];
 
-  let wxRaw, downrangeAvailable = true, aqOk = true, aq = null;
+  let wx;
   try {
-    wxRaw = await fetchWeather(checkpoints);
+    wx = await fetchSummitWeather(loc);
   } catch(e){
-    try {
-      wxRaw = await fetchWeather([]);
-      downrangeAvailable = false;
-    } catch(e2){
-      statusEl.innerHTML = `<div class="err">Couldn't load the weather forecast: ${e2.message}. Try refreshing — if it keeps failing, Open-Meteo may be temporarily unavailable.</div>`;
-      btn.disabled = false;
-      return;
-    }
+    statusEl.innerHTML = `<div class="err">Couldn't load the weather forecast: ${e.message}. Try refreshing — if it keeps failing, Open-Meteo may be temporarily unavailable.</div>`;
+    btn.disabled = false;
+    return;
   }
-  const wxList = Array.isArray(wxRaw) ? wxRaw : [wxRaw];
-  if(wxList.length < 5) downrangeAvailable = false;
-  const wx = wxList[0];
+
+  // The checkpoint call is independent of the summit call now — if it fails,
+  // the core forecast above is completely unaffected, we just lose the
+  // directional corridor factor for this run (handled gracefully downstream).
+  let downrangeAvailable = true, cpRaw = null, aqOk = true, aq = null;
+  try {
+    cpRaw = await fetchCheckpointWeather(checkpoints);
+    const cpList = Array.isArray(cpRaw) ? cpRaw : (cpRaw ? [cpRaw] : []);
+    if(cpList.length < 4) downrangeAvailable = false;
+    else cpRaw = cpList;
+  } catch(e){
+    downrangeAvailable = false;
+  }
 
   function buildLoc(locObj){
     if(!locObj || !locObj.hourly) return {epochs:[], cloudLow:null};
@@ -514,13 +582,13 @@ async function loadAll(){
       cloudLow: pick(locObj.hourly, ['cloud_cover_low','cloudcover_low'])
     };
   }
-  const srNearLoc = downrangeAvailable ? buildLoc(wxList[1]) : null;
-  const srFarLoc  = downrangeAvailable ? buildLoc(wxList[2]) : null;
-  const ssNearLoc = downrangeAvailable ? buildLoc(wxList[3]) : null;
-  const ssFarLoc  = downrangeAvailable ? buildLoc(wxList[4]) : null;
+  const srNearLoc = downrangeAvailable ? buildLoc(cpRaw[0]) : null;
+  const srFarLoc  = downrangeAvailable ? buildLoc(cpRaw[1]) : null;
+  const ssNearLoc = downrangeAvailable ? buildLoc(cpRaw[2]) : null;
+  const ssFarLoc  = downrangeAvailable ? buildLoc(cpRaw[3]) : null;
 
   try {
-    aq = await fetchAirQuality();
+    aq = await fetchAirQuality(loc);
   } catch(e){
     aqOk = false;
   }
@@ -655,8 +723,44 @@ async function loadAll(){
     `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${downrangeAvailable ? ' + directional corridor check' : ' (directional corridor unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ})`;
 }
 
+function renderChips(){
+  document.getElementById('eyebrowText').textContent = `${currentLoc.name} · Live Forecast Model`;
+  document.getElementById('chipCoords').textContent = `${currentLoc.lat.toFixed(3)}°N, ${currentLoc.lon.toFixed(3)}°E`;
+  document.getElementById('chipElev').textContent = `${currentLoc.elevation} m summit`;
+  document.getElementById('chipRegion').textContent = currentLoc.region;
+}
+
+function renderLocSwitch(){
+  const el = document.getElementById('locSwitch');
+  el.innerHTML = LOCATIONS.map(l =>
+    `<button class="loc-tab${l.id===currentLoc.id?' active':''}" data-loc="${l.id}">${l.name}</button>`
+  ).join('');
+  el.querySelectorAll('.loc-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const chosen = LOCATIONS.find(l => l.id === btn.dataset.loc);
+      if(!chosen || chosen.id === currentLoc.id) return;
+      currentLoc = chosen;
+      try { localStorage.setItem('skyIndexLocation', currentLoc.id); } catch(e){}
+      renderChips();
+      renderLocSwitch();
+      loadAll();
+    });
+  });
+}
+
+renderChips();
+renderLocSwitch();
 document.getElementById('refreshBtn').addEventListener('click', loadAll);
 loadAll();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // Non-fatal: the app still works fully online without the service worker,
+      // it just won't be installable/offline-capable in that case.
+    });
+  });
+}
 </script>
 </body>
 </html>
