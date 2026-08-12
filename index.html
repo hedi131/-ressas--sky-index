@@ -158,6 +158,30 @@
 
   .why-text{font-size:13.5px;line-height:1.55;color:var(--text-lo);margin-bottom:14px;}
 
+  .inversion-badge{
+    display:flex;align-items:flex-start;gap:10px;
+    background:rgba(47,191,160,0.08);border:1px solid rgba(47,191,160,0.3);
+    border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:13px;line-height:1.5;color:var(--text-hi);
+  }
+  .inversion-badge .icon{font-size:18px;line-height:1;}
+  .inversion-badge strong{color:var(--teal);}
+
+  .cloud-tag{
+    display:inline-flex;align-items:center;gap:7px;
+    font-family:'Inter',sans-serif;font-weight:700;font-size:14px;
+    margin-bottom:14px;
+  }
+  .cloud-tag .pct{
+    font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:12px;color:var(--text-faint);
+  }
+
+  .picks-banner{
+    background:rgba(155,163,176,0.08);border:1px solid rgba(155,163,176,0.25);
+    border-radius:12px;padding:14px 16px;margin-bottom:16px;
+    font-size:13.5px;line-height:1.55;color:var(--text-lo);
+  }
+  .picks-banner strong{color:var(--text-hi);}
+
   .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
   .stat{background:rgba(255,255,255,0.03);border-radius:8px;padding:9px 11px;}
   .stat-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin-bottom:3px;}
@@ -211,9 +235,10 @@
 
   <section class="block" id="picksBlock" style="display:none;">
     <div class="block-head">
-      <h2>Best upcoming windows</h2>
+      <h2 id="picksHeading">Best upcoming windows</h2>
       <span class="block-sub" id="picksSub"></span>
     </div>
+    <div id="picksBanner"></div>
     <div class="picks-grid" id="topPicks"></div>
   </section>
 
@@ -242,6 +267,10 @@
       </table>
       <h3>How the direction is calculated</h3>
       <p>Each event's true sunrise/sunset compass bearing is computed from the summit's latitude and the sun's declination for that date, using a standard solar-geometry formula (verified against three known reference cases — equinox gives due East/West everywhere, and mid-latitude solstice bearings were checked against published almanac values before this went live). Two checkpoints are placed 60km and 130km along that bearing using standard great-circle geodesy, and their forecast low cloud cover is pulled at the exact moment of the event. The bearing is held fixed across the whole 10-day window rather than recalculated per day — it drifts at most a few degrees over that span, which shifts a checkpoint by only a few km at this distance.</p>
+      <h3>Cloud inversion ("sea of clouds") signal</h3>
+      <p>This is deliberately kept separate from the 0-100 score, because it's a different kind of good outcome, not more color. It answers a different question: is there a shallow cloud layer trapped below the summit, with the peak sitting clear above it? The check compares the summit's own cloud reading against a second reading for the same coordinates with elevation pulled down to a generic valley-floor height. If the valley reading shows real cloud while the summit stays clear, the badge appears. Be clear-eyed about what this is: Open-Meteo's elevation parameter adjusts the forecast using standard lapse-rate relationships, it does not simulate an actual vertical atmospheric profile. This is a reasonable proxy for a real, physically meaningful pattern — it is not a direct measurement of one. Inversions are genuinely difficult to forecast precisely even for professional meteorologists; treat the badge as a reason to check back closer to the day, not as a guarantee.</p>
+      <h3>Alpenglow / Belt of Venus signal</h3>
+      <p>Every other factor on this page looks toward the sun. This one looks the opposite way. Around sunrise and sunset there's often a pink-purple band low on the horizon opposite the sun, with a soft blue-grey shadow beneath it — and it doesn't need dramatic clouds to show up, just reasonably clear air in that direction. The check places one reference point 50km out along the bearing directly opposite the sun and reads its low cloud cover as a proxy for whether that part of the sky is open. It's shown as a separate badge because it can be genuinely worth turning around for even on a day the main score rates as flat and unremarkable.</p>
       <h3>Reading the score</h3>
       <ul>
         <li><strong style="color:#FF9D6C">85–100 — Exceptional:</strong> textured, saturated sky likely. Go.</li>
@@ -428,6 +457,16 @@ function tierOf(score){
   return {label:"Poor", color:"#FF8478", bg:"rgba(224,87,75,0.14)"};
 }
 
+// A single, unambiguous read on "is there cloud at all" — separate from the
+// score, since the score blends six factors and can be hard to reverse-engineer
+// back into a simple yes/no on cloud presence.
+function cloudReadTag(totalCloud){
+  if(totalCloud==null) return {icon:'—', label:'Cloud data unavailable', color:'var(--text-faint)'};
+  if(totalCloud<15) return {icon:'☀️', label:'Essentially clear', color:'#9BA3B0'};
+  if(totalCloud<70) return {icon:'⛅', label:'Partly cloudy', color:'var(--teal)'};
+  return {icon:'☁️', label:'Overcast', color:'#FF8478'};
+}
+
 function reasonText(s){
   const b = s.breakdown, r = s.raw;
   const parts = [];
@@ -528,6 +567,26 @@ async function fetchAirQuality(loc){
   return res.json();
 }
 
+// Cloud inversion ("sea of clouds") heuristic: query the SAME coordinates again,
+// but override elevation down to a generic valley-floor height instead of the
+// summit's real elevation. If that reading shows real low cloud while the
+// summit's own reading (from fetchSummitWeather) stays clear, that's a genuine
+// signal of a shallow layer trapped below summit height.
+// Honest limitation: Open-Meteo's elevation parameter is *statistical
+// downscaling* — it adjusts the forecast using standard lapse-rate relationships,
+// not a simulated vertical atmospheric profile. This is a reasonable proxy, not
+// a direct physical measurement of an inversion layer. Treat it as a lead worth
+// checking, not a guarantee — inversions are genuinely hard to forecast precisely
+// even for professional meteorologists.
+const VALLEY_REFERENCE_ELEVATION = 100;
+async function fetchValleyWeather(loc){
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+    `&elevation=${VALLEY_REFERENCE_ELEVATION}&hourly=cloud_cover_low&forecast_days=10`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("Valley-reference request failed ("+res.status+")");
+  return res.json();
+}
+
 async function loadAll(){
   const statusEl = document.getElementById('status');
   const btn = document.getElementById('refreshBtn');
@@ -552,7 +611,16 @@ async function loadAll(){
   const srFar  = destinationPoint(loc.lat, loc.lon, sunriseBearing, 130);
   const ssNear = destinationPoint(loc.lat, loc.lon, sunsetBearing, 60);
   const ssFar  = destinationPoint(loc.lat, loc.lon, sunsetBearing, 130);
-  const checkpoints = [srNear, srFar, ssNear, ssFar];
+  // Anti-solar checkpoints, for the alpenglow / Belt of Venus signal — the pink-
+  // purple twilight band that appears opposite the sun, independent of whether
+  // there's any cloud at all near the sun itself. Closer distance than the main
+  // corridor (50km) since this is about the near-horizon glow, not the sun's
+  // light path.
+  const antiSunriseBearing = (sunriseBearing + 180) % 360;
+  const antiSunsetBearing  = (sunsetBearing + 180) % 360;
+  const antiSr = destinationPoint(loc.lat, loc.lon, antiSunriseBearing, 50);
+  const antiSs = destinationPoint(loc.lat, loc.lon, antiSunsetBearing, 50);
+  const checkpoints = [srNear, srFar, ssNear, ssFar, antiSr, antiSs];
 
   let wx;
   try {
@@ -565,15 +633,17 @@ async function loadAll(){
 
   // The checkpoint call is independent of the summit call now — if it fails,
   // the core forecast above is completely unaffected, we just lose the
-  // directional corridor factor for this run (handled gracefully downstream).
-  let downrangeAvailable = true, cpRaw = null, aqOk = true, aq = null;
+  // directional corridor and alpenglow factors for this run (handled gracefully
+  // downstream). Both signals ride in the same batched request, so they share
+  // one availability flag.
+  let checkpointsAvailable = true, cpRaw = null, aqOk = true, aq = null;
   try {
     cpRaw = await fetchCheckpointWeather(checkpoints);
     const cpList = Array.isArray(cpRaw) ? cpRaw : (cpRaw ? [cpRaw] : []);
-    if(cpList.length < 4) downrangeAvailable = false;
+    if(cpList.length < 6) checkpointsAvailable = false;
     else cpRaw = cpList;
   } catch(e){
-    downrangeAvailable = false;
+    checkpointsAvailable = false;
   }
 
   function buildLoc(locObj){
@@ -583,15 +653,30 @@ async function loadAll(){
       cloudLow: pick(locObj.hourly, ['cloud_cover_low','cloudcover_low'])
     };
   }
-  const srNearLoc = downrangeAvailable ? buildLoc(cpRaw[0]) : null;
-  const srFarLoc  = downrangeAvailable ? buildLoc(cpRaw[1]) : null;
-  const ssNearLoc = downrangeAvailable ? buildLoc(cpRaw[2]) : null;
-  const ssFarLoc  = downrangeAvailable ? buildLoc(cpRaw[3]) : null;
+  const srNearLoc = checkpointsAvailable ? buildLoc(cpRaw[0]) : null;
+  const srFarLoc  = checkpointsAvailable ? buildLoc(cpRaw[1]) : null;
+  const ssNearLoc = checkpointsAvailable ? buildLoc(cpRaw[2]) : null;
+  const ssFarLoc  = checkpointsAvailable ? buildLoc(cpRaw[3]) : null;
+  const antiSrLoc = checkpointsAvailable ? buildLoc(cpRaw[4]) : null;
+  const antiSsLoc = checkpointsAvailable ? buildLoc(cpRaw[5]) : null;
 
   try {
     aq = await fetchAirQuality(loc);
   } catch(e){
     aqOk = false;
+  }
+
+  let inversionAvailable = true, valleyEpochs = [], valleyCloudLowArr = null;
+  try {
+    const valleyRaw = await fetchValleyWeather(loc);
+    if(valleyRaw && valleyRaw.hourly){
+      valleyEpochs = (valleyRaw.hourly.time||[]).map(toEpoch);
+      valleyCloudLowArr = pick(valleyRaw.hourly, ['cloud_cover_low','cloudcover_low']);
+    } else {
+      inversionAvailable = false;
+    }
+  } catch(e){
+    inversionAvailable = false;
   }
 
   const hourly = wx.hourly || {};
@@ -641,18 +726,44 @@ async function loadAll(){
     const wind = interpAt(ev.epoch, hEpochs, windArr);
     const dust = dustArr ? interpAt(ev.epoch, aqEpochs, dustArr) : null;
 
-    let downrangeNear = null, downrangeFar = null;
+    let downrangeNear = null, downrangeFar = null, alpenglowPotential = null;
     const bearing = ev.type === 'sunrise' ? sunriseBearing : sunsetBearing;
-    if(downrangeAvailable){
+    if(checkpointsAvailable){
       const nearLoc = ev.type === 'sunrise' ? srNearLoc : ssNearLoc;
       const farLoc = ev.type === 'sunrise' ? srFarLoc : ssFarLoc;
       downrangeNear = interpAt(ev.epoch, nearLoc.epochs, nearLoc.cloudLow);
       downrangeFar = interpAt(ev.epoch, farLoc.epochs, farLoc.cloudLow);
+
+      const antiLoc = ev.type === 'sunrise' ? antiSrLoc : antiSsLoc;
+      const antiCloudLow = interpAt(ev.epoch, antiLoc.epochs, antiLoc.cloudLow);
+      if(antiCloudLow != null){
+        alpenglowPotential = horizonScoreFn(antiCloudLow) * 100;
+      }
+    }
+
+    // Inversion ("sea of clouds") signal: valley reading shows real low cloud
+    // while the summit's own reading (cloudLow, computed above) stays clear.
+    let inversionPotential = null;
+    if(inversionAvailable && cloudLow != null){
+      const valleyCloudLow = interpAt(ev.epoch, valleyEpochs, valleyCloudLowArr);
+      if(valleyCloudLow != null){
+        const gap = valleyCloudLow - cloudLow;
+        inversionPotential = Math.max(0, Math.min(100, (gap - 15) * (100/45)));
+      }
+    }
+
+    // Plain-language total cloud read, so "is there cloud at all" doesn't
+    // require parsing three separate percentages. Standard random-overlap
+    // approximation: total sky fraction covered by at least one layer.
+    let totalCloud = null;
+    if(cloudLow != null && cloudMid != null && cloudHigh != null){
+      const clearFrac = (1 - cloudLow/100) * (1 - cloudMid/100) * (1 - cloudHigh/100);
+      totalCloud = Math.round((1 - clearFrac) * 100);
     }
 
     const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar});
     const dayOffset = Math.floor((ev.epoch - now) / 86400000);
-    return {...ev, score, dayOffset, bearing};
+    return {...ev, score, dayOffset, bearing, inversionPotential, alpenglowPotential, totalCloud};
   });
 
   statusEl.innerHTML = '';
@@ -661,17 +772,33 @@ async function loadAll(){
   // Top picks: best 3 by score within next 7 days
   const within7 = scored.filter(s => s.dayOffset <= 7);
   const top3 = [...within7].sort((a,b)=>b.score.total-a.score.total).slice(0,3);
+  const GOOD_ENOUGH_THRESHOLD = 65;
+  const bestScore = top3.length ? top3[0].score.total : 0;
 
   const picksBlock = document.getElementById('picksBlock');
   const topPicksEl = document.getElementById('topPicks');
-  document.getElementById('picksSub').textContent = `ranked · next 7 days`;
+  const picksBanner = document.getElementById('picksBanner');
+  const picksHeading = document.getElementById('picksHeading');
+
+  if(bestScore < GOOD_ENOUGH_THRESHOLD){
+    picksHeading.textContent = 'Nothing great coming up';
+    document.getElementById('picksSub').textContent = `next 7 days`;
+    picksBanner.innerHTML = `<div class="picks-banner"><strong>Honestly, nothing in the next 7 days clears a real bar.</strong> The best of the bunch still scores below what this tool calls "Good." What's below is the least-bad option for reference, not a recommendation to make the drive — worth waiting this stretch out.</div>`;
+  } else {
+    picksHeading.textContent = 'Best upcoming windows';
+    document.getElementById('picksSub').textContent = `ranked · next 7 days`;
+    picksBanner.innerHTML = '';
+  }
+
   topPicksEl.innerHTML = top3.map((s, idx) => {
     const tier = tierOf(s.score.total);
+    const ct = cloudReadTag(s.totalCloud);
     return `
       <div class="pick-card">
         <div class="pick-rank">#${idx+1}</div>
         <div class="pick-date">${fmtDate(s.epoch)} · ${fmtTime(s.epoch)}</div>
         <div class="pick-event">${s.type === 'sunset' ? 'Sunset' : 'Sunrise'}</div>
+        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?s.totalCloud+'% total cloud':''}</span></div>
         <div class="pick-score-row">
           <div class="pick-score" style="color:${tier.color}">${Math.round(s.score.total)}</div>
           <div class="pick-tier" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
@@ -686,6 +813,7 @@ async function loadAll(){
   const dayList = document.getElementById('dayList');
   dayList.innerHTML = scored.map(s => {
     const tier = tierOf(s.score.total);
+    const ct = cloudReadTag(s.totalCloud);
     const bearingLabel = `${Math.round(s.bearing)}° ${compassLabel(s.bearing)}`;
     return `
       <div class="day-card">
@@ -705,7 +833,18 @@ async function loadAll(){
             <div class="tier-pill" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
           </div>
         </div>
+        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?'· '+s.totalCloud+'% total cloud':''}</span></div>
         ${skyStripHTML(s.score.raw)}
+        ${s.inversionPotential!=null && s.inversionPotential>=35 ? `
+        <div class="inversion-badge">
+          <div class="icon">☁️</div>
+          <div><strong>Possible cloud inversion.</strong> Valley reference shows real low cloud while the summit's own reading stays clear — the setup that produces a "sea of clouds" below you. This is a heuristic, not a direct measurement; inversions are genuinely hard to forecast precisely, so treat this as worth checking closer to the day, not a promise.</div>
+        </div>` : ''}
+        ${s.alpenglowPotential!=null && s.alpenglowPotential>=70 ? `
+        <div class="inversion-badge" style="background:rgba(255,122,69,0.08);border-color:rgba(255,122,69,0.3);">
+          <div class="icon">🌆</div>
+          <div><strong>Turn around at ${s.type==='sunset'?'dusk':'dawn'}.</strong> The sky opposite the ${s.type} looks clear — good odds for the Belt of Venus / alpenglow band, independent of what the main score says about the ${s.type} itself. This still works even on an otherwise flat, clear-sky day.</div>
+        </div>` : ''}
         <div class="why-text">${reasonText(s.score)}</div>
         <div class="stat-row">
           <div class="stat"><div class="stat-label">Humidity</div><div class="stat-val">${s.score.raw.humidity!=null?Math.round(s.score.raw.humidity)+'%':'—'}</div></div>
@@ -714,6 +853,8 @@ async function loadAll(){
           <div class="stat"><div class="stat-label">Dust</div><div class="stat-val">${s.score.raw.dust!=null?Math.round(s.score.raw.dust)+' µg/m³':(aqOk?'—':'unavailable')}</div></div>
           <div class="stat"><div class="stat-label">Corridor (60km)</div><div class="stat-val">${s.score.raw.downrangeNear!=null?Math.round(s.score.raw.downrangeNear)+'% low cloud':'—'}</div></div>
           <div class="stat"><div class="stat-label">Corridor (130km)</div><div class="stat-val">${s.score.raw.downrangeFar!=null?Math.round(s.score.raw.downrangeFar)+'% low cloud':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Inversion signal</div><div class="stat-val">${s.inversionPotential!=null?Math.round(s.inversionPotential)+'%':'—'}</div></div>
+          <div class="stat"><div class="stat-label">Alpenglow signal</div><div class="stat-val">${s.alpenglowPotential!=null?Math.round(s.alpenglowPotential)+'%':'—'}</div></div>
         </div>
       </div>
     `;
@@ -721,7 +862,7 @@ async function loadAll(){
   document.getElementById('allBlock').style.display = 'block';
 
   document.getElementById('footerNote').textContent =
-    `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${downrangeAvailable ? ' + directional corridor check' : ' (directional corridor unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ})`;
+    `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${checkpointsAvailable ? ' + directional corridor + alpenglow check' : ' (directional/alpenglow checks unavailable this run)'}${inversionAvailable ? ' + inversion signal' : ' (inversion signal unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ})`;
 }
 
 function renderChips(){
