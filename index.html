@@ -553,7 +553,7 @@ async function fetchCheckpointWeather(points){
   const lats = points.map(p=>p.lat).join(',');
   const lons = points.map(p=>p.lon).join(',');
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-    `&hourly=cloud_cover_low&cell_selection=nearest&forecast_days=10`;
+    `&hourly=cloud_cover_low&cell_selection=nearest&timezone=${encodeURIComponent(TZ)}&forecast_days=10`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Checkpoint forecast request failed ("+res.status+")");
   return res.json();
@@ -561,7 +561,7 @@ async function fetchCheckpointWeather(points){
 
 async function fetchAirQuality(loc){
   const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lon}` +
-    `&hourly=dust,pm10&timezone=${encodeURIComponent(TZ)}&forecast_days=7`;
+    `&hourly=dust,pm10&timezone=${encodeURIComponent(TZ)}&forecast_days=5`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Air quality request failed ("+res.status+")");
   return res.json();
@@ -581,7 +581,7 @@ async function fetchAirQuality(loc){
 const VALLEY_REFERENCE_ELEVATION = 100;
 async function fetchValleyWeather(loc){
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
-    `&elevation=${VALLEY_REFERENCE_ELEVATION}&hourly=cloud_cover_low&forecast_days=10`;
+    `&elevation=${VALLEY_REFERENCE_ELEVATION}&hourly=cloud_cover_low&timezone=${encodeURIComponent(TZ)}&forecast_days=10`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Valley-reference request failed ("+res.status+")");
   return res.json();
@@ -626,6 +626,7 @@ async function loadAll(){
   try {
     wx = await fetchSummitWeather(loc);
   } catch(e){
+    console.error('[Sky Index] Summit weather fetch failed:', e);
     statusEl.innerHTML = `<div class="err">Couldn't load the weather forecast: ${e.message}. Try refreshing — if it keeps failing, Open-Meteo may be temporarily unavailable.</div>`;
     btn.disabled = false;
     return;
@@ -640,9 +641,14 @@ async function loadAll(){
   try {
     cpRaw = await fetchCheckpointWeather(checkpoints);
     const cpList = Array.isArray(cpRaw) ? cpRaw : (cpRaw ? [cpRaw] : []);
-    if(cpList.length < 6) checkpointsAvailable = false;
-    else cpRaw = cpList;
+    if(cpList.length < 6){
+      console.warn('[Sky Index] Checkpoint fetch returned fewer than 6 locations:', cpList.length);
+      checkpointsAvailable = false;
+    } else {
+      cpRaw = cpList;
+    }
   } catch(e){
+    console.error('[Sky Index] Checkpoint fetch failed — corridor + alpenglow signals disabled this run:', e);
     checkpointsAvailable = false;
   }
 
@@ -662,7 +668,11 @@ async function loadAll(){
 
   try {
     aq = await fetchAirQuality(loc);
+    if(!aq || !aq.hourly || !pick(aq.hourly, ['dust'])){
+      console.warn('[Sky Index] Air quality response had no usable dust field:', aq);
+    }
   } catch(e){
+    console.error('[Sky Index] Air quality fetch failed — dust factor disabled this run:', e);
     aqOk = false;
   }
 
@@ -673,9 +683,11 @@ async function loadAll(){
       valleyEpochs = (valleyRaw.hourly.time||[]).map(toEpoch);
       valleyCloudLowArr = pick(valleyRaw.hourly, ['cloud_cover_low','cloudcover_low']);
     } else {
+      console.warn('[Sky Index] Valley-reference response had no hourly data:', valleyRaw);
       inversionAvailable = false;
     }
   } catch(e){
+    console.error('[Sky Index] Valley-reference fetch failed — inversion signal disabled this run:', e);
     inversionAvailable = false;
   }
 
