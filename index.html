@@ -265,6 +265,8 @@
         <tr><td>Dust / aerosols</td><td>10 pts</td><td>PM10 &amp; dust concentration. Light Saharan dust can deepen reds; heavy dust events wash the whole sky out.</td></tr>
         <tr><td>Wind</td><td>10 pts</td><td>Light-to-moderate wind keeps the air clean without shredding cloud structure; dead calm risks stagnant haze, strong wind risks a wiped-clean sky.</td></tr>
       </table>
+      <h3>Why a distant "Exceptional" can settle lower as the day approaches</h3>
+      <p>The canvas score checks three points — local, 60km, and 130km — and can credit whichever one shows the best cloud structure, since a wide mountaintop view can be dominated by cloud that isn't directly overhead. But taking the best of three separately-uncertain forecasts is a known statistical bias: it tends to overshoot the true value, and the overshoot is worse the more uncertain each forecast is. Forecast uncertainty is highest at long lead times. So a score that's high specifically because a distant checkpoint beat the local reading is discounted the further out it is — full weight inside a day or two, progressively less trust further out — and settles toward the local reading's own number as confidence in the corridor forecast is lower. This means scores should generally look more conservative several days out and firm up (up or down) as the event gets closer, rather than starting inflated and only ever drifting down.</p>
       <h3>How the direction is calculated</h3>
       <p>Each event's true sunrise/sunset compass bearing is computed from the summit's latitude and the sun's declination for that date, using a standard solar-geometry formula (verified against three known reference cases — equinox gives due East/West everywhere, and mid-latitude solstice bearings were checked against published almanac values before this went live). Two checkpoints are placed 60km and 130km along that bearing using standard great-circle geodesy, and their forecast low cloud cover is pulled at the exact moment of the event. The bearing is held fixed across the whole 10-day window rather than recalculated per day — it drifts at most a few degrees over that span, which shifts a checkpoint by only a few km at this distance.</p>
       <h3>Cloud inversion ("sea of clouds") signal</h3>
@@ -442,14 +444,28 @@ function canvasScoreFn(mid, high){
   return midS*0.6 + highS*0.4;
 }
 
-function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh}){
+function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh, dayOffset}){
   const localCanvas = canvasScoreFn(cloudMid, cloudHigh);
   const nearCanvas = (corridorNearMid!=null || corridorNearHigh!=null) ? canvasScoreFn(corridorNearMid, corridorNearHigh) : null;
   const farCanvas = (corridorFarMid!=null || corridorFarHigh!=null) ? canvasScoreFn(corridorFarMid, corridorFarHigh) : null;
 
-  let bestCanvas = localCanvas, canvasSource = 'local';
-  if(nearCanvas!=null && nearCanvas > bestCanvas){ bestCanvas = nearCanvas; canvasSource = 'corridor60'; }
-  if(farCanvas!=null && farCanvas > bestCanvas){ bestCanvas = farCanvas; canvasSource = 'corridor130'; }
+  let rawBest = localCanvas, canvasSource = 'local';
+  if(nearCanvas!=null && nearCanvas > rawBest){ rawBest = nearCanvas; canvasSource = 'corridor60'; }
+  if(farCanvas!=null && farCanvas > rawBest){ rawBest = farCanvas; canvasSource = 'corridor130'; }
+
+  // Discount the corridor's advantage over local as lead time grows. Taking the
+  // max of three independently-forecast points is a real statistical bias — it
+  // systematically overshoots the true value, and the overshoot grows with how
+  // uncertain each sample is. Forecast uncertainty grows with lead time, so a
+  // far-out score that's high specifically *because* a distant checkpoint beat
+  // local is the exact shape of an overconfident long-range read that regresses
+  // down as the event approaches. Full trust inside 1 day out, discounted
+  // toward a floor further out — advantage never fully vanishes, since a
+  // distant signal can still be a real early hint, just not one to bank on yet.
+  const d = dayOffset ?? 0;
+  const trust = Math.max(0.35, Math.min(1, 1 - (d - 1) * 0.09));
+  const advantage = rawBest - localCanvas;
+  const bestCanvas = localCanvas + advantage * trust;
 
   const canvasPts = bestCanvas * 35;
   const horizonPts = horizonScoreFn(cloudLow) * 15;
@@ -763,6 +779,7 @@ async function loadAll(){
   }
 
   const scored = events.map(ev => {
+    const dayOffset = Math.floor((ev.epoch - now) / 86400000);
     const cloudLow = interpAt(ev.epoch, hEpochs, cloudLowArr);
     const cloudMid = interpAt(ev.epoch, hEpochs, cloudMidArr);
     const cloudHigh = interpAt(ev.epoch, hEpochs, cloudHighArr);
@@ -802,7 +819,7 @@ async function loadAll(){
       }
     }
 
-    const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh});
+    const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh, dayOffset});
 
     // Plain-language total cloud read, built from whichever source actually won
     // the canvas score above — not always the local point. If a distant
@@ -820,7 +837,6 @@ async function loadAll(){
       const clearFrac = (1 - cloudLow/100) * (1 - effectiveMid/100) * (1 - effectiveHigh/100);
       totalCloud = Math.round((1 - clearFrac) * 100);
     }
-    const dayOffset = Math.floor((ev.epoch - now) / 86400000);
     return {...ev, score, dayOffset, bearing, inversionPotential, alpenglowPotential, totalCloud, cloudTagSource};
   });
 
@@ -911,6 +927,10 @@ async function loadAll(){
           <div class="stat"><div class="stat-label">Dust</div><div class="stat-val">${s.score.raw.dust!=null?Math.round(s.score.raw.dust)+' µg/m³':(aqOk?'—':'unavailable')}</div></div>
           <div class="stat"><div class="stat-label">Corridor (60km)</div><div class="stat-val">${s.score.raw.downrangeNear!=null?Math.round(s.score.raw.downrangeNear)+'% low cloud':'—'}</div></div>
           <div class="stat"><div class="stat-label">Corridor (130km)</div><div class="stat-val">${s.score.raw.downrangeFar!=null?Math.round(s.score.raw.downrangeFar)+'% low cloud':'—'}</div></div>
+          ${s.cloudTagSource==='60km out' ? `
+          <div class="stat"><div class="stat-label">Corridor 60km — mid/high</div><div class="stat-val">${s.score.raw.corridorNearMid!=null?Math.round(s.score.raw.corridorNearMid):'—'}% / ${s.score.raw.corridorNearHigh!=null?Math.round(s.score.raw.corridorNearHigh):'—'}%</div></div>` : ''}
+          ${s.cloudTagSource==='130km out' ? `
+          <div class="stat"><div class="stat-label">Corridor 130km — mid/high</div><div class="stat-val">${s.score.raw.corridorFarMid!=null?Math.round(s.score.raw.corridorFarMid):'—'}% / ${s.score.raw.corridorFarHigh!=null?Math.round(s.score.raw.corridorFarHigh):'—'}%</div></div>` : ''}
           <div class="stat"><div class="stat-label">Inversion signal</div><div class="stat-val">${s.inversionPotential!=null?Math.round(s.inversionPotential)+'%':'—'}</div></div>
           <div class="stat"><div class="stat-label">Alpenglow signal</div><div class="stat-val">${s.alpenglowPotential!=null?Math.round(s.alpenglowPotential)+'%':'—'}</div></div>
         </div>
