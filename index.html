@@ -431,13 +431,30 @@ function windScoreFn(w){
   return 0;
 }
 
-function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar}){
-  const midS = bellScore(cloudMid, 0, 25, 65, 100);
-  const highS = bellScore(cloudHigh, 0, 10, 55, 100);
-  const canvasPts = (midS*0.6 + highS*0.4) * 30;
-  const horizonPts = horizonScoreFn(cloudLow) * 18;
+// Shared bell-curve blend for "is there color-catching mid/high cloud here" —
+// reused for the local point AND both corridor checkpoints, since a mountaintop
+// sunset view spans a wide field toward the horizon, not just the sky directly
+// overhead. A cloud bank 60-130km out can be the visually dominant thing in
+// frame even when the sky right above the summit reads completely clear.
+function canvasScoreFn(mid, high){
+  const midS = bellScore(mid, 0, 25, 65, 100);
+  const highS = bellScore(high, 0, 10, 55, 100);
+  return midS*0.6 + highS*0.4;
+}
+
+function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh}){
+  const localCanvas = canvasScoreFn(cloudMid, cloudHigh);
+  const nearCanvas = (corridorNearMid!=null || corridorNearHigh!=null) ? canvasScoreFn(corridorNearMid, corridorNearHigh) : null;
+  const farCanvas = (corridorFarMid!=null || corridorFarHigh!=null) ? canvasScoreFn(corridorFarMid, corridorFarHigh) : null;
+
+  let bestCanvas = localCanvas, canvasSource = 'local';
+  if(nearCanvas!=null && nearCanvas > bestCanvas){ bestCanvas = nearCanvas; canvasSource = 'corridor60'; }
+  if(farCanvas!=null && farCanvas > bestCanvas){ bestCanvas = farCanvas; canvasSource = 'corridor130'; }
+
+  const canvasPts = bestCanvas * 35;
+  const horizonPts = horizonScoreFn(cloudLow) * 15;
   const downrangeScore = horizonScoreFn(downrangeNear)*0.5 + horizonScoreFn(downrangeFar)*0.5;
-  const downrangePts = downrangeScore * 12;
+  const downrangePts = downrangeScore * 10;
   const clarityPts = (humidityScoreFn(humidity)*0.5 + visibilityScoreFn(visibility)*0.5) * 20;
   const dustPts = dustScoreFn(dust) * 10;
   const windPts = windScoreFn(wind) * 10;
@@ -445,7 +462,8 @@ function computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind
   return {
     total,
     breakdown: {canvasPts, horizonPts, downrangePts, clarityPts, dustPts, windPts},
-    raw: {cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar}
+    canvasSource,
+    raw: {cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh}
   };
 }
 
@@ -457,34 +475,47 @@ function tierOf(score){
   return {label:"Poor", color:"#FF8478", bg:"rgba(224,87,75,0.14)"};
 }
 
-// A single, unambiguous read on "is there cloud at all" — separate from the
-// score, since the score blends six factors and can be hard to reverse-engineer
-// back into a simple yes/no on cloud presence.
-function cloudReadTag(totalCloud){
+// A single, unambiguous read on cloud structure — separate from the score,
+// since the score blends six factors and can be hard to reverse-engineer back
+// into a simple read on what the sky actually looks like. Uses cloudLow
+// specifically, not just the blended total: a low, solid deck genuinely
+// flattens the view regardless of what's above it, but broken mid/high cloud
+// over a clear horizon is the single best setup this model rewards — lumping
+// that in with true overcast under one alarming label was a real bug.
+function cloudReadTag(totalCloud, cloudLow){
   if(totalCloud==null) return {icon:'—', label:'Cloud data unavailable', color:'var(--text-faint)'};
+  if(cloudLow!=null && cloudLow>=65) return {icon:'☁️', label:'Low overcast — likely blocks the view', color:'#FF8478'};
   if(totalCloud<15) return {icon:'☀️', label:'Essentially clear', color:'#9BA3B0'};
-  if(totalCloud<70) return {icon:'⛅', label:'Partly cloudy', color:'var(--teal)'};
-  return {icon:'☁️', label:'Overcast', color:'#FF8478'};
+  if(totalCloud>=88) return {icon:'☁️', label:'Heavy cloud cover', color:'#FF8478'};
+  return {icon:'⛅', label:'Broken cloud — good canvas', color:'var(--teal)'};
 }
 
 function reasonText(s){
   const b = s.breakdown, r = s.raw;
   const parts = [];
-  if(b.canvasPts < 12){
-    if((r.cloudMid??0) < 10 && (r.cloudHigh??0) < 10) parts.push("essentially clear sky — little to no cloud to catch color, expect a flat gradient");
-    else parts.push("cloud cover is too heavy or too sparse to build real texture");
-  } else if(b.canvasPts > 26){
-    parts.push(`solid mid/high cloud deck (mid ${Math.round(r.cloudMid??0)}%, high ${Math.round(r.cloudHigh??0)}%) — good canvas for color`);
+  if(b.canvasPts < 14){
+    if((r.cloudMid??0) < 10 && (r.cloudHigh??0) < 10 && (r.corridorNearMid??0) < 10 && (r.corridorFarMid??0) < 10) {
+      parts.push("essentially clear sky in every direction checked — little to no cloud to catch color, expect a flat gradient");
+    } else {
+      parts.push("cloud cover is too heavy or too sparse everywhere checked to build real texture");
+    }
+  } else if(b.canvasPts > 28){
+    if(s.canvasSource === 'corridor60' || s.canvasSource === 'corridor130'){
+      const dist = s.canvasSource === 'corridor60' ? '60km' : '130km';
+      parts.push(`the color-catching cloud is out at the ${dist} corridor, not directly overhead — still very visible in a wide horizon view from the summit`);
+    } else {
+      parts.push(`solid mid/high cloud deck overhead (mid ${Math.round(r.cloudMid??0)}%, high ${Math.round(r.cloudHigh??0)}%) — good canvas for color`);
+    }
   }
-  if(b.horizonPts < 10){
+  if(b.horizonPts < 6){
     parts.push(`low cloud is heavy (${Math.round(r.cloudLow??0)}%) and may block the sun near the horizon`);
-  } else if(b.horizonPts > 20){
+  } else if(b.horizonPts > 12){
     parts.push("horizon looks clear, so light should reach the clouds above it");
   }
   if(r.downrangeNear!=null || r.downrangeFar!=null){
-    if(b.downrangePts < 5){
-      parts.push("cloud sitting further out along the sun's path could block light before it reaches you");
-    } else if(b.downrangePts > 10){
+    if(b.downrangePts < 4){
+      parts.push("low cloud sitting further out along the sun's path could still block light before it reaches you");
+    } else if(b.downrangePts > 8){
       parts.push("the corridor toward the horizon in the sun's direction looks open");
     }
   }
@@ -553,7 +584,7 @@ async function fetchCheckpointWeather(points){
   const lats = points.map(p=>p.lat).join(',');
   const lons = points.map(p=>p.lon).join(',');
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-    `&hourly=cloud_cover_low&cell_selection=nearest&timezone=${encodeURIComponent(TZ)}&forecast_days=10`;
+    `&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high&cell_selection=nearest&timezone=${encodeURIComponent(TZ)}&forecast_days=10`;
   const res = await fetch(url);
   if(!res.ok) throw new Error("Checkpoint forecast request failed ("+res.status+")");
   return res.json();
@@ -653,10 +684,12 @@ async function loadAll(){
   }
 
   function buildLoc(locObj){
-    if(!locObj || !locObj.hourly) return {epochs:[], cloudLow:null};
+    if(!locObj || !locObj.hourly) return {epochs:[], cloudLow:null, cloudMid:null, cloudHigh:null};
     return {
       epochs: (locObj.hourly.time||[]).map(toEpoch),
-      cloudLow: pick(locObj.hourly, ['cloud_cover_low','cloudcover_low'])
+      cloudLow: pick(locObj.hourly, ['cloud_cover_low','cloudcover_low']),
+      cloudMid: pick(locObj.hourly, ['cloud_cover_mid','cloudcover_mid']),
+      cloudHigh: pick(locObj.hourly, ['cloud_cover_high','cloudcover_high'])
     };
   }
   const srNearLoc = checkpointsAvailable ? buildLoc(cpRaw[0]) : null;
@@ -739,12 +772,17 @@ async function loadAll(){
     const dust = dustArr ? interpAt(ev.epoch, aqEpochs, dustArr) : null;
 
     let downrangeNear = null, downrangeFar = null, alpenglowPotential = null;
+    let corridorNearMid = null, corridorNearHigh = null, corridorFarMid = null, corridorFarHigh = null;
     const bearing = ev.type === 'sunrise' ? sunriseBearing : sunsetBearing;
     if(checkpointsAvailable){
       const nearLoc = ev.type === 'sunrise' ? srNearLoc : ssNearLoc;
       const farLoc = ev.type === 'sunrise' ? srFarLoc : ssFarLoc;
       downrangeNear = interpAt(ev.epoch, nearLoc.epochs, nearLoc.cloudLow);
       downrangeFar = interpAt(ev.epoch, farLoc.epochs, farLoc.cloudLow);
+      corridorNearMid = interpAt(ev.epoch, nearLoc.epochs, nearLoc.cloudMid);
+      corridorNearHigh = interpAt(ev.epoch, nearLoc.epochs, nearLoc.cloudHigh);
+      corridorFarMid = interpAt(ev.epoch, farLoc.epochs, farLoc.cloudMid);
+      corridorFarHigh = interpAt(ev.epoch, farLoc.epochs, farLoc.cloudHigh);
 
       const antiLoc = ev.type === 'sunrise' ? antiSrLoc : antiSsLoc;
       const antiCloudLow = interpAt(ev.epoch, antiLoc.epochs, antiLoc.cloudLow);
@@ -764,18 +802,26 @@ async function loadAll(){
       }
     }
 
-    // Plain-language total cloud read, so "is there cloud at all" doesn't
-    // require parsing three separate percentages. Standard random-overlap
-    // approximation: total sky fraction covered by at least one layer.
+    const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar, corridorNearMid, corridorNearHigh, corridorFarMid, corridorFarHigh});
+
+    // Plain-language total cloud read, built from whichever source actually won
+    // the canvas score above — not always the local point. If a distant
+    // checkpoint provided the color-catching cloud, the tag needs to reflect
+    // that, or it would contradict the score exactly like the local-only
+    // version did before this fix. Low cloud is always the local reading here,
+    // since that's specifically about the near-observer horizon, not the
+    // distant canvas.
+    let effectiveMid = cloudMid, effectiveHigh = cloudHigh, cloudTagSource = 'local';
+    if(score.canvasSource === 'corridor60'){ effectiveMid = corridorNearMid; effectiveHigh = corridorNearHigh; cloudTagSource = '60km out'; }
+    else if(score.canvasSource === 'corridor130'){ effectiveMid = corridorFarMid; effectiveHigh = corridorFarHigh; cloudTagSource = '130km out'; }
+
     let totalCloud = null;
-    if(cloudLow != null && cloudMid != null && cloudHigh != null){
-      const clearFrac = (1 - cloudLow/100) * (1 - cloudMid/100) * (1 - cloudHigh/100);
+    if(cloudLow != null && effectiveMid != null && effectiveHigh != null){
+      const clearFrac = (1 - cloudLow/100) * (1 - effectiveMid/100) * (1 - effectiveHigh/100);
       totalCloud = Math.round((1 - clearFrac) * 100);
     }
-
-    const score = computeScore({cloudLow, cloudMid, cloudHigh, humidity, visibility, wind, dust, downrangeNear, downrangeFar});
     const dayOffset = Math.floor((ev.epoch - now) / 86400000);
-    return {...ev, score, dayOffset, bearing, inversionPotential, alpenglowPotential, totalCloud};
+    return {...ev, score, dayOffset, bearing, inversionPotential, alpenglowPotential, totalCloud, cloudTagSource};
   });
 
   statusEl.innerHTML = '';
@@ -804,13 +850,13 @@ async function loadAll(){
 
   topPicksEl.innerHTML = top3.map((s, idx) => {
     const tier = tierOf(s.score.total);
-    const ct = cloudReadTag(s.totalCloud);
+    const ct = cloudReadTag(s.totalCloud, s.score.raw.cloudLow);
     return `
       <div class="pick-card">
         <div class="pick-rank">#${idx+1}</div>
         <div class="pick-date">${fmtDate(s.epoch)} · ${fmtTime(s.epoch)}</div>
         <div class="pick-event">${s.type === 'sunset' ? 'Sunset' : 'Sunrise'}</div>
-        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?s.totalCloud+'% total cloud':''}</span></div>
+        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?s.totalCloud+'% total cloud':''}${s.cloudTagSource && s.cloudTagSource!=='local'?' · '+s.cloudTagSource:''}</span></div>
         <div class="pick-score-row">
           <div class="pick-score" style="color:${tier.color}">${Math.round(s.score.total)}</div>
           <div class="pick-tier" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
@@ -825,7 +871,7 @@ async function loadAll(){
   const dayList = document.getElementById('dayList');
   dayList.innerHTML = scored.map(s => {
     const tier = tierOf(s.score.total);
-    const ct = cloudReadTag(s.totalCloud);
+    const ct = cloudReadTag(s.totalCloud, s.score.raw.cloudLow);
     const bearingLabel = `${Math.round(s.bearing)}° ${compassLabel(s.bearing)}`;
     return `
       <div class="day-card">
@@ -845,7 +891,7 @@ async function loadAll(){
             <div class="tier-pill" style="color:${tier.color};background:${tier.bg}">${tier.label}</div>
           </div>
         </div>
-        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?'· '+s.totalCloud+'% total cloud':''}</span></div>
+        <div class="cloud-tag" style="color:${ct.color}">${ct.icon} ${ct.label} <span class="pct">${s.totalCloud!=null?'· '+s.totalCloud+'% total cloud':''}${s.cloudTagSource && s.cloudTagSource!=='local'?' · '+s.cloudTagSource:''}</span></div>
         ${skyStripHTML(s.score.raw)}
         ${s.inversionPotential!=null && s.inversionPotential>=35 ? `
         <div class="inversion-badge">
