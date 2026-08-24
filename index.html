@@ -634,7 +634,10 @@ async function fetchValleyWeather(loc){
   return res.json();
 }
 
+let activeRequestId = 0;
+
 async function loadAll(){
+  const myRequestId = ++activeRequestId;
   const statusEl = document.getElementById('status');
   const btn = document.getElementById('refreshBtn');
   const loc = currentLoc;
@@ -674,10 +677,12 @@ async function loadAll(){
     wx = await fetchSummitWeather(loc);
   } catch(e){
     console.error('[Sky Index] Summit weather fetch failed:', e);
+    if(myRequestId !== activeRequestId) return; // a newer request superseded this one
     statusEl.innerHTML = `<div class="err">Couldn't load the weather forecast: ${e.message}. Try refreshing — if it keeps failing, Open-Meteo may be temporarily unavailable.</div>`;
     btn.disabled = false;
     return;
   }
+  if(myRequestId !== activeRequestId) return; // a newer request superseded this one
 
   // The checkpoint call is independent of the summit call now — if it fails,
   // the core forecast above is completely unaffected, we just lose the
@@ -839,6 +844,12 @@ async function loadAll(){
     }
     return {...ev, score, dayOffset, bearing, inversionPotential, alpenglowPotential, totalCloud, cloudTagSource};
   });
+
+  // Final, critical guard: if the user switched location or hit refresh again
+  // while this request was still in flight, activeRequestId has moved on.
+  // Discard this response entirely rather than let a slow, now-outdated
+  // request overwrite what a newer one already rendered (or is about to).
+  if(myRequestId !== activeRequestId) return;
 
   statusEl.innerHTML = '';
   btn.disabled = false;
