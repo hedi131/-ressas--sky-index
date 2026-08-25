@@ -291,6 +291,9 @@
 </div>
 
 <script>
+const BUILD_VERSION = 'build-2026-08-25-racefix';
+console.log('[Sky Index] running', BUILD_VERSION);
+
 const LOCATIONS = [
   {
     id: 'ressas',
@@ -951,7 +954,7 @@ async function loadAll(){
   document.getElementById('allBlock').style.display = 'block';
 
   document.getElementById('footerNote').textContent =
-    `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${checkpointsAvailable ? ' + directional corridor + alpenglow check' : ' (directional/alpenglow checks unavailable this run)'}${inversionAvailable ? ' + inversion signal' : ' (inversion signal unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ})`;
+    `Data: Open-Meteo forecast${aqOk ? ' + air quality' : ' (air quality unavailable this run)'}${checkpointsAvailable ? ' + directional corridor + alpenglow check' : ' (directional/alpenglow checks unavailable this run)'}${inversionAvailable ? ' + inversion signal' : ' (inversion signal unavailable this run)'} · fetched ${new Date().toLocaleString('en-GB',{timeZone:TZ})} (${TZ}) · ${BUILD_VERSION}`;
 }
 
 function renderChips(){
