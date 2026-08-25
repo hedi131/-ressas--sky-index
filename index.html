@@ -987,13 +987,18 @@ renderLocSwitch();
 document.getElementById('refreshBtn').addEventListener('click', loadAll);
 loadAll();
 
+// The service worker previously used here caused a real, painful bug: it only
+// checks for its own updates on the browser's lazy schedule (which can lag up
+// to 24 hours, worse on some mobile browsers), so every future code update
+// risked getting silently stuck behind stale cached logic again — exactly what
+// happened. The offline-app-shell benefit it provided was never something
+// actually needed here; "Add to Home Screen" still gives a proper icon via
+// manifest.json without it. Actively unregistering any already-installed copy
+// so this stops being a problem for good, not just patched again.
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {
-      // Non-fatal: the app still works fully online without the service worker,
-      // it just won't be installable/offline-capable in that case.
-    });
-  });
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for(const reg of regs) reg.unregister();
+  }).catch(() => {});
 }
 </script>
 </body>
